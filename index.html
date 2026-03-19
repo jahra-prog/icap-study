@@ -219,9 +219,8 @@
 </div>
 
 <script>
-// [수정 필요] 아래 URL을 Google Apps Script 배포 URL로 교체하세요
-// =====================================================
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbweLEYVJxLgg_JpYbunk3m4oP2m_tTuJB0fVdSieb6W-Pm0SN8EhGcd4d54ImOSH0EerA/exec';
+const ANTHROPIC_API_KEY = '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';
 // =====================================================
 
 const SURVEY_ITEMS = [
@@ -317,7 +316,23 @@ async function sendChat() {
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role, content: m.content }));
 
-    const reply = await jsonpChat(messages);
+    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1000,
+        system: '당신은 글쓰기 학습을 돕는 AI 조교입니다. 사용자가 주어진 주제에 대해 스스로 생각하고 논지를 발전시킬 수 있도록 지원하세요. 답을 직접 써주기보다는 질문 제시, 관점 탐색, 논거 점검을 통해 사용자의 사고를 촉진하세요. 한국어로 응답하세요.',
+        messages: messages
+      })
+    });
+    const apiData = await apiRes.json();
+    const reply = apiData.content?.[0]?.text || '응답을 받지 못했습니다.';
     typingEl.textContent = reply;
     typingEl.classList.remove('typing');
     chatLog.push({ role:'assistant', content: reply, time: new Date().toISOString() });
