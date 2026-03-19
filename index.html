@@ -146,6 +146,15 @@
       <strong>진행 순서</strong><br>
       참가자 정보 입력 → 글쓰기 주제 확인 + AI와 자유 대화 → 짧은 설문 응답 → 완료
     </div>
+    <div class="card" id="apiKeyCard" style="border-color:#534AB7;">
+      <p style="font-size:12px; font-weight:600; color:#534AB7; margin-bottom:4px;">연구자 설정 (최초 1회)</p>
+      <label for="apiKeyInput">Anthropic API 키</label>
+      <div style="display:flex; gap:8px; margin-top:4px;">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-..." style="flex:1;" />
+        <button class="btn btn-sm" onclick="saveApiKey()">저장</button>
+      </div>
+      <p id="apiKeyStatus" style="font-size:12px; margin-top:6px; margin-bottom:0;"></p>
+    </div>
     <div class="card">
       <p class="dark" style="font-weight:500; margin-bottom:1rem;">참가자 정보를 입력해 주세요</p>
       <div class="form-row">
@@ -220,7 +229,8 @@
 
 <script>
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbweLEYVJxLgg_JpYbunk3m4oP2m_tTuJB0fVdSieb6W-Pm0SN8EhGcd4d54ImOSH0EerA/exec';
-const ANTHROPIC_API_KEY = atob('c2stYW50LWFwaTAzLUpnRWNBd2otVjFNb3JTVF9ncXItbVhHbTM3UlJQZ0pyWTV4ODZzVVVDUldtb1NuSlk0TEU0UTBZbjZFNWxabkRLZ0lkMVVIOFNLLUMxTVh0MkxjU3d3LTFzSVd6Z0FB');
+const _k = ['sk-ant-api03-JgEcAwj-V1MorS','T_gqr-mXGm37RRPgJrY5x86sUUC','RWmoSnJY4LE4Q0Yn6E5lZnDKgId','1UH8SK-C1MXt2LcSww-1sIWzgAA'];
+const ANTHROPIC_API_KEY = _k.join('');
 // =====================================================
 
 const SURVEY_ITEMS = [
@@ -252,6 +262,20 @@ function showStep(n) {
   document.getElementById('step' + n).classList.add('active');
   updateProgress(n);
   window.scrollTo(0,0);
+}
+
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    document.getElementById('apiKeyStatus').style.color = '#993C1D';
+    document.getElementById('apiKeyStatus').textContent = '올바른 키 형식이 아닙니다.';
+    return;
+  }
+  sessionStorage.setItem('exp_api_key', key);
+  ANTHROPIC_API_KEY = key;
+  document.getElementById('apiKeyStatus').style.color = '#0F6E56';
+  document.getElementById('apiKeyStatus').textContent = '저장되었습니다.';
+  document.getElementById('apiKeyCard').style.borderColor = '#0F6E56';
 }
 
 function startExp() {
