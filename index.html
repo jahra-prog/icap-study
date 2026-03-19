@@ -301,7 +301,8 @@ async function sendChat() {
       })
     });
     const apiData = await apiRes.json();
-    const reply = apiData.content?.[0]?.text || '응답을 받지 못했습니다.';
+    console.log('API response:', JSON.stringify(apiData));
+    const reply = (apiData.content && apiData.content[0] && apiData.content[0].text) ? apiData.content[0].text : (apiData.error ? apiData.error.message : '응답을 받지 못했습니다.');
     typingEl.textContent = reply;
     typingEl.classList.remove('typing');
     chatLog.push({ role:'assistant', content: reply, time: new Date().toISOString() });
