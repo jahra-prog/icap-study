@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 글쓰기 실험</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --purple: #534AB7;
+    --purple-light: #EEEDFE;
+    --purple-dark: #3C3489;
+    --teal: #0F6E56;
+    --teal-light: #E1F5EE;
+    --gray-bg: #F7F7F5;
+    --gray-border: #E2E0D8;
+    --text: #1a1a1a;
+    --text-muted: #6b6b6b;
+    --white: #ffffff;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--gray-bg); color: var(--text); font-size: 15px; line-height: 1.6; min-height: 100vh; }
+  .page { max-width: 700px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+
+  /* Step visibility */
+  .step { display: none; }
+  .step.active { display: block; }
+
+  /* Progress */
+  .progress-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 2rem; }
+  .progress-step { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+  .progress-step .dot { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--gray-border); background: var(--white); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--text-muted); flex-shrink: 0; }
+  .progress-step.done .dot { background: var(--purple-light); border-color: var(--purple); color: var(--purple); }
+  .progress-step.active .dot { background: var(--purple); border-color: var(--purple); color: var(--white); }
+  .progress-step.active { color: var(--text); font-weight: 500; }
+  .progress-line { flex: 1; height: 1px; background: var(--gray-border); }
+
+  /* Card */
+  .card { background: var(--white); border: 1px solid var(--gray-border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
+
+  /* Badge */
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-bottom: 0.75rem; letter-spacing: 0.02em; }
+  .badge-purple { background: var(--purple-light); color: var(--purple-dark); }
+  .badge-teal { background: var(--teal-light); color: var(--teal); }
+
+  h1 { font-size: 22px; font-weight: 600; margin-bottom: 0.5rem; }
+  h2 { font-size: 18px; font-weight: 600; margin-bottom: 0.5rem; }
+  p { color: var(--text-muted); margin-bottom: 0.75rem; font-size: 14px; }
+  p.dark { color: var(--text); }
+
+  /* Form inputs */
+  label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text); }
+  input[type=text], textarea, select {
+    width: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--gray-border);
+    border-radius: var(--radius-sm); font-size: 14px; background: var(--white);
+    color: var(--text); font-family: inherit; transition: border-color 0.15s;
+  }
+  input[type=text]:focus, textarea:focus { outline: none; border-color: var(--purple); }
+  textarea { min-height: 180px; resize: vertical; line-height: 1.7; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1rem; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 0.6rem 1.4rem; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; border: 1px solid var(--gray-border); background: var(--white); color: var(--text); transition: background 0.15s; }
+  .btn:hover { background: var(--gray-bg); }
+  .btn-primary { background: var(--purple); color: var(--white); border-color: var(--purple); }
+  .btn-primary:hover { background: var(--purple-dark); border-color: var(--purple-dark); }
+  .btn-sm { padding: 0.4rem 1rem; font-size: 13px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Topic box */
+  .topic-box { background: var(--purple-light); border-left: 3px solid var(--purple); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 1rem 1.2rem; margin: 1rem 0; font-size: 14px; color: var(--text); line-height: 1.8; }
+  .topic-box strong { display: block; font-size: 12px; font-weight: 600; color: var(--purple); margin-bottom: 0.5rem; letter-spacing: 0.03em; }
+
+  /* Chat */
+  .chat-wrap { border: 1px solid var(--gray-border); border-radius: var(--radius); overflow: hidden; margin-bottom: 0.75rem; }
+  .chat-messages { height: 280px; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 10px; background: var(--gray-bg); }
+  .msg { max-width: 82%; padding: 0.65rem 0.9rem; border-radius: 12px; font-size: 14px; line-height: 1.55; }
+  .msg.user { align-self: flex-end; background: var(--purple); color: #fff; border-radius: 12px 12px 3px 12px; }
+  .msg.ai { align-self: flex-start; background: var(--white); border: 1px solid var(--gray-border); color: var(--text); border-radius: 12px 12px 12px 3px; }
+  .msg.ai.typing { color: var(--text-muted); font-style: italic; }
+  .chat-input-area { display: flex; gap: 8px; padding: 0.75rem; background: var(--white); border-top: 1px solid var(--gray-border); }
+  .chat-input-area input { flex: 1; height: 36px; padding: 0 0.75rem; border: 1px solid var(--gray-border); border-radius: var(--radius-sm); font-size: 14px; font-family: inherit; }
+  .chat-input-area input:focus { outline: none; border-color: var(--purple); }
+  .chat-turns { font-size: 12px; color: var(--text-muted); margin-top: 0.4rem; text-align: right; }
+
+  /* Survey */
+  .survey-item { margin-bottom: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--gray-border); }
+  .survey-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .q-text { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 3px; }
+  .q-icap { font-size: 11px; color: var(--purple); font-weight: 600; margin-bottom: 0.6rem; }
+  .likert { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .likert-anchor { font-size: 11px; color: var(--text-muted); padding: 0 4px; }
+  .likert-opt { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .likert-opt input[type=radio] { cursor: pointer; accent-color: var(--purple); width: 16px; height: 16px; }
+  .likert-opt span { font-size: 11px; color: var(--text-muted); }
+
+  /* Info box */
+  .info-box { background: var(--teal-light); border-radius: var(--radius-sm); padding: 0.9rem 1rem; font-size: 13px; color: var(--teal); margin-bottom: 1rem; }
+  .info-box strong { font-weight: 600; }
+
+  /* Notice */
+  .notice { font-size: 12px; color: var(--text-muted); margin-top: 0.5rem; }
+
+  /* Status */
+  .status-msg { font-size: 13px; padding: 0.6rem 0.9rem; border-radius: var(--radius-sm); margin-top: 0.75rem; display: none; }
+  .status-msg.show { display: block; }
+  .status-msg.ok { background: var(--teal-light); color: var(--teal); }
+  .status-msg.err { background: #FAECE7; color: #993C1D; }
+
+  /* Complete screen */
+  .complete-icon { width: 56px; height: 56px; background: var(--teal-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; }
+  .complete-icon svg { width: 28px; height: 28px; stroke: var(--teal); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  hr { border: none; border-top: 1px solid var(--gray-border); margin: 1.5rem 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Progress indicator -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-step active" id="pdot0">
+      <div class="dot">1</div><span>참가자 정보</span>
+    </div>
+    <div class="progress-line"></div>
+    <div class="progress-step" id="pdot1">
+      <div class="dot">2</div><span>글쓰기 + AI 대화</span>
+    </div>
+    <div class="progress-line"></div>
+    <div class="progress-step" id="pdot2">
+      <div class="dot">3</div><span>설문</span>
+    </div>
+    <div class="progress-line"></div>
+    <div class="progress-step" id="pdot3">
+      <div class="dot">4</div><span>완료</span>
+    </div>
+  </div>
+
+  <!-- Step 0: Participant info -->
+  <div class="step active" id="step0">
+    <div class="badge badge-purple">ICAP 인식-행동 불일치 연구</div>
+    <h1>실험 참여 안내</h1>
+    <p>이 연구는 AI를 활용한 글쓰기 과정에서 여러분의 실제 행동과 스스로 인식하는 학습 방식의 차이를 탐구합니다.</p>
+    <div class="info-box">
+      <strong>진행 순서</strong><br>
+      참가자 정보 입력 → 글쓰기 주제 확인 + AI와 자유 대화 → 짧은 설문 응답 → 완료
+    </div>
+    <div class="card">
+      <p class="dark" style="font-weight:500; margin-bottom:1rem;">참가자 정보를 입력해 주세요</p>
+      <div class="form-row">
+        <div>
+          <label for="pidInput">참가자 ID</label>
+          <input type="text" id="pidInput" placeholder="예: P01" />
+        </div>
+        <div>
+          <label for="pgroupInput">소속 / 기수</label>
+          <input type="text" id="pgroupInput" placeholder="예: 대학원 25학번" />
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="startExp()">실험 시작 →</button>
+  </div>
+
+  <!-- Step 1: Writing + Chat -->
+  <div class="step" id="step1">
+    <div class="badge badge-purple">2단계 — 글쓰기 과제</div>
+    <h2>주제를 읽고 AI와 자유롭게 대화하며 글을 작성하세요</h2>
+    <p>AI 활용 방식에는 제한이 없습니다. 아이디어 탐색, 자료 확인, 논지 점검 등 원하는 방식으로 사용하세요.</p>
+
+    <div class="topic-box">
+      <strong>글쓰기 주제</strong>
+      온라인 학습 환경에서 AI 도구의 활용은 학습자의 자기조절학습을 촉진하는가, 아니면 방해하는가? 자신의 경험과 생각을 바탕으로 논지를 전개하시오.
+    </div>
+
+    <div class="card" style="padding: 1rem;">
+      <p style="font-size:13px; margin-bottom:0.5rem;">AI와 대화</p>
+      <div class="chat-wrap">
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg ai">안녕하세요! 글쓰기 주제에 대해 궁금한 점, 아이디어 탐색, 논거 점검 등 무엇이든 도움드릴게요.</div>
+        </div>
+        <div class="chat-input-area">
+          <input type="text" id="chatInput" placeholder="메시지 입력 후 Enter 또는 전송" onkeydown="if(event.key==='Enter')sendChat()" />
+          <button class="btn btn-primary btn-sm" onclick="sendChat()">전송</button>
+        </div>
+      </div>
+      <div class="chat-turns" id="chatTurns">대화 횟수: 0회</div>
+    </div>
+
+    <div class="card" style="padding: 1rem;">
+      <label for="essayInput" style="margin-bottom:6px;">작성한 글 (최종본)</label>
+      <textarea id="essayInput" placeholder="여기에 글을 작성하세요..."></textarea>
+    </div>
+
+    <button class="btn btn-primary" onclick="goSurvey()">설문으로 이동 →</button>
+    <p class="notice">* 대화 내역은 자동으로 기록됩니다.</p>
+  </div>
+
+  <!-- Step 2: Survey -->
+  <div class="step" id="step2">
+    <div class="badge badge-teal">3단계 — 설문</div>
+    <h2>글쓰기 중 AI를 어떻게 활용했는지 응답해 주세요</h2>
+    <p>정답은 없습니다. 본인이 느낀 대로 솔직하게 답해 주세요. (5점 척도)</p>
+    <div class="card" id="surveyContainer"></div>
+    <button class="btn btn-primary" onclick="submitAll()" id="submitBtn">제출하기</button>
+    <div class="status-msg" id="submitStatus"></div>
+  </div>
+
+  <!-- Step 3: Complete -->
+  <div class="step" id="step3">
+    <div class="complete-icon">
+      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    </div>
+    <div class="badge badge-teal">완료</div>
+    <h1>참여해 주셔서 감사합니다</h1>
+    <p>응답이 정상적으로 저장되었습니다. 이 창을 닫으셔도 됩니다.</p>
+  </div>
+
+</div>
+
+<script>
+// [수정 필요] 아래 URL을 Google Apps Script 배포 URL로 교체하세요
+// =====================================================
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbweLEYVJxLgg_JpYbunk3m4oP2m_tTuJB0fVdSieb6W-Pm0SN8EhGcd4d54ImOSH0EerA/exec';
+// =====================================================
+
+const SURVEY_ITEMS = [
+  { id:'q1', icap:'Passive',      text:'AI가 제공한 정보나 설명을 주로 읽거나 듣는 방식으로 활용했다.' },
+  { id:'q2', icap:'Passive',      text:'AI의 답변을 참고 자료처럼 그대로 받아들였다.' },
+  { id:'q3', icap:'Active',       text:'AI가 제안한 내용을 내 방식으로 다시 정리하거나 재구성했다.' },
+  { id:'q4', icap:'Active',       text:'AI의 답변에서 핵심 아이디어를 골라 내 글에 반영했다.' },
+  { id:'q5', icap:'Constructive', text:'AI와의 대화를 통해 내 기존 생각을 발전시키거나 새로운 관점을 만들어냈다.' },
+  { id:'q6', icap:'Constructive', text:'AI의 답변과 내 생각을 비교하며 나만의 논지를 구성했다.' },
+  { id:'q7', icap:'Interactive',  text:'AI와 주고받은 대화를 통해 내 생각이 점진적으로 변화하거나 심화되었다.' },
+  { id:'q8', icap:'Interactive',  text:'AI의 반응에 따라 내 질문이나 탐구 방향이 달라졌다.' },
+  { id:'q9', icap:'Perceived',    text:'나는 이번 글쓰기에서 AI를 능동적으로 활용했다고 생각한다.' },
+  { id:'q10',icap:'Perceived',    text:'AI와의 상호작용이 내 글쓰기 사고 과정에 실질적으로 기여했다.' },
+];
+
+let participant = {};
+let chatLog = [];
+let userTurns = 0;
+
+function updateProgress(step) {
+  [0,1,2,3].forEach(i => {
+    const el = document.getElementById('pdot' + i);
+    el.className = 'progress-step' + (i < step ? ' done' : i === step ? ' active' : '');
+  });
+}
+
+function showStep(n) {
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step' + n).classList.add('active');
+  updateProgress(n);
+  window.scrollTo(0,0);
+}
+
+function startExp() {
+  const pid = document.getElementById('pidInput').value.trim();
+  const grp = document.getElementById('pgroupInput').value.trim();
+  if (!pid) { alert('참가자 ID를 입력해 주세요.'); return; }
+  participant = { id: pid, group: grp, startTime: new Date().toISOString() };
+  chatLog = [];
+  userTurns = 0;
+  showStep(1);
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  input.disabled = true;
+
+  appendMsg('user', msg);
+  chatLog.push({ role:'user', content: msg, time: new Date().toISOString() });
+  userTurns++;
+  document.getElementById('chatTurns').textContent = `대화 횟수: ${userTurns}회`;
+
+  const typingEl = appendMsg('ai', '답변 생성 중...', true);
+
+  try {
+    const messages = chatLog
+      .filter(m => m.role !== 'system')
+      .map(m => ({ role: m.role, content: m.content }));
+
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'chat', messages })
+    });
+    const data = await res.json();
+    const reply = data.reply || '응답을 받지 못했습니다.';
+    typingEl.textContent = reply;
+    typingEl.classList.remove('typing');
+    chatLog.push({ role:'assistant', content: reply, time: new Date().toISOString() });
+  } catch(e) {
+    typingEl.textContent = '오류가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+    typingEl.classList.remove('typing');
+  }
+  input.disabled = false;
+  input.focus();
+}
+
+function appendMsg(role, text, isTyping=false) {
+  const area = document.getElementById('chatMessages');
+  const el = document.createElement('div');
+  el.className = 'msg ' + role + (isTyping ? ' typing' : '');
+  el.textContent = text;
+  area.appendChild(el);
+  area.scrollTop = area.scrollHeight;
+  return el;
+}
+
+function goSurvey() {
+  const essay = document.getElementById('essayInput').value.trim();
+  if (!essay) { alert('글을 작성한 후 이동해 주세요.'); return; }
+  participant.essay = essay;
+  buildSurvey();
+  showStep(2);
+}
+
+function buildSurvey() {
+  const container = document.getElementById('surveyContainer');
+  container.innerHTML = '';
+  SURVEY_ITEMS.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'survey-item';
+    div.innerHTML = `
+      <div class="q-text">Q${idx+1}. ${item.text}</div>
+      <div class="q-icap">${item.icap}</div>
+      <div class="likert">
+        <span class="likert-anchor">전혀 그렇지 않다</span>
+        ${[1,2,3,4,5].map(v=>`
+          <div class="likert-opt">
+            <input type="radio" name="${item.id}" value="${v}" />
+            <span>${v}</span>
+          </div>`).join('')}
+        <span class="likert-anchor">매우 그렇다</span>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+async function submitAll() {
+  const btn = document.getElementById('submitBtn');
+  const statusEl = document.getElementById('submitStatus');
+
+  // Collect survey responses
+  const responses = {};
+  let missing = false;
+  SURVEY_ITEMS.forEach(item => {
+    const sel = document.querySelector(`input[name="${item.id}"]:checked`);
+    if (!sel) { missing = true; return; }
+    responses[item.id] = parseInt(sel.value);
+  });
+  if (missing) { alert('모든 문항에 응답해 주세요.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+
+  const payload = {
+    participantId: participant.id,
+    group: participant.group,
+    startTime: participant.startTime,
+    submitTime: new Date().toISOString(),
+    essay: participant.essay,
+    chatTurns: userTurns,
+    chatLog: JSON.stringify(chatLog),
+    ...responses
+  };
+
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'save', ...payload })
+    });
+    showStep(3);
+  } catch(e) {
+    statusEl.textContent = '저장 중 오류가 발생했습니다. 다시 시도해 주세요.';
+    statusEl.className = 'status-msg show err';
+    btn.disabled = false;
+    btn.textContent = '제출하기';
+  }
+}
+</script>
+</body>
+</html>
